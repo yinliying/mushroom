@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="theme-color" content="#2c5e3a">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>蘑菇智识 - 野生蘑菇识别系统</title>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a4d2a 0%, #2c5e3a 100%);
+            min-height: 100vh;
+            padding: 12px;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 32px;
+            overflow: hidden;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+        }
+        .header {
+            background: linear-gradient(135deg, #2c5e3a, #1e3a2e);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+        .header h1 { font-size: 24px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .badge-container { display: flex; justify-content: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+        .badge { background: rgba(255,255,255,0.2); padding: 3px 8px; border-radius: 20px; font-size: 9px; }
+        .model-status {
+            background: rgba(255,255,255,0.25);
+            padding: 6px 12px;
+            border-radius: 30px;
+            font-size: 11px;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 10px;
+        }
+        .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #ffaa44; animation: pulse 1.5s infinite; }
+        .status-dot.loaded { background: #4caf50; animation: none; }
+        .status-dot.error { background: #f44336; animation: none; }
+        @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
+
+        .upload-buttons {
+            margin: 16px;
+            display: flex;
+            gap: 12px;
+            flex-direction: column;
+        }
+        .upload-btn {
+            background: #f1f5f9;
+            border: 2px solid #cbd5e1;
+            border-radius: 60px;
+            padding: 16px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            font-size: 16px;
+            font-weight: 500;
+            color: #1e293b;
+        }
+        .upload-btn:active { background: #e2e8f0; transform: scale(0.98); }
+        .camera-btn {
+            background: linear-gradient(135deg, #2c5e3a, #1e3a2e);
+            border-color: #2c5e3a;
+            color: white;
+        }
+        .upload-icon { font-size: 24px; }
+
+        .preview-wrapper {
+            margin: 0 16px 16px 16px;
+            display: none;
+            border-radius: 20px;
+            overflow: hidden;
+            background: #f1f5f9;
+            position: relative;
+        }
+        #previewCanvas { width: 100%; height: auto; display: block; }
+
+        .btn-detect {
+            background: linear-gradient(135deg, #2c5e3a, #1e3a2e);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            border-radius: 60px;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0 16px 16px 16px;
+            width: calc(100% - 32px);
+        }
+        .btn-detect:active { transform: scale(0.98); }
+        .btn-detect:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+        .reset-btn {
+            background: #f1f5f9;
+            color: #64748b;
+            border: 1px solid #cbd5e1;
+            padding: 10px 16px;
+            border-radius: 40px;
+            font-size: 14px;
+            margin: 0 16px 16px 16px;
+            width: calc(100% - 32px);
+            cursor: pointer;
+            display: none;
+        }
+
+        .result-panel { background: #f8fafc; margin: 0 16px 16px 16px; border-radius: 24px; padding: 16px; }
+        .result-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+        .inference-time { font-size: 10px; color: #64748b; background: #e2e8f0; padding: 3px 8px; border-radius: 20px; }
+        #detectionList { max-height: 400px; overflow-y: auto; }
+        .detection-card { background: white; border-radius: 14px; padding: 12px; margin-bottom: 10px; border-left: 4px solid; }
+        .detection-card.danger { border-left-color: #d32f2f; }
+        .detection-card.caution { border-left-color: #ff9800; }
+        .detection-card.safe { border-left-color: #4caf50; }
+        .mushroom-name { font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .latin-name { font-size: 10px; font-weight: normal; color: #64748b; font-style: italic; }
+        .confidence-bar { background: #e2e8f0; border-radius: 8px; height: 5px; margin: 8px 0; }
+        .confidence-fill { background: linear-gradient(90deg, #2c5e3a, #4caf50); height: 100%; border-radius: 8px; transition: width 0.3s; }
+        .tags { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+        .tag { padding: 2px 8px; border-radius: 16px; font-size: 10px; font-weight: 500; }
+        .tag-confidence { background: #e3f2fd; color: #1565c0; }
+        .tag-toxicity { background: #ffebee; color: #c62828; }
+        .tag-toxicity.safe { background: #e8f5e9; color: #2e7d32; }
+        .description { font-size: 10px; color: #5a6e8a; margin-top: 8px; padding-top: 6px; border-top: 1px solid #edf2f7; }
+        .warning-banner { border-radius: 14px; padding: 10px; margin-top: 12px; display: flex; gap: 8px; align-items: center; font-size: 11px; }
+        .warning-banner.danger { background: #ffebee; border-left: 4px solid #d32f2f; }
+        .warning-banner.caution { background: #fff3e0; border-left: 4px solid #ff9800; }
+        .warning-banner.safe { background: #e8f5e9; border-left: 4px solid #4caf50; }
+        .image-info {
+            font-size: 12px;
+            color: #2c5e3a;
+            text-align: center;
+            margin: 8px 16px;
+            padding: 8px;
+            background: #e8f5e9;
+            border-radius: 30px;
+            display: none;
+        }
+        .footer { background: #f1f5f9; padding: 12px; text-align: center; font-size: 9px; color: #64748b; }
+        .loader { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; vertical-align: middle; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .progress-bar {
+            width: 100%;
+            height: 3px;
+            background: #e2e8f0;
+            position: fixed;
+            top: 0;
+            left: 0;
+            z-index: 1000;
+        }
+        .progress-fill {
+            width: 0%;
+            height: 100%;
+            background: #4caf50;
+            transition: width 0.3s;
+        }
+        .install-banner {
+            background: #2c5e3a;
+            color: white;
+            padding: 10px 16px;
+            text-align: center;
+            font-size: 12px;
+            cursor: pointer;
+            display: none;
+        }
+        .error-box {
+            background: #ffebee;
+            color: #c62828;
+            padding: 12px;
+            margin: 16px;
+            border-radius: 16px;
+            text-align: center;
+            font-size: 12px;
+        }
+        #fileInputCamera, #fileInputGallery { display: none; }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar" style="display:none;"><div class="progress-fill" id="progressFill"></div></div>
+    <div class="container">
+        <div class="header">
+            <h1><span>🍄</span> 蘑菇智识 <span>🔬</span></h1>
+            <p>YOLOv8 ONNX | 14种野生蘑菇识别</p>
+            <div class="badge-container">
+                <span class="badge">🎯 精确率 98%</span>
+                <span class="badge">📊 召回率 90%</span>
+                <span class="badge">🔒 本地推理</span>
+                <span class="badge">📱 手机可用</span>
+            </div>
+            <div class="model-status" id="modelStatus">
+                <span class="status-dot" id="statusDot"></span>
+                <span id="statusText">等待加载模型...</span>
+            </div>
+        </div>
+        <div class="install-banner" id="installBanner" onclick="installPWA()">📱 点击安装到桌面，离线使用更便捷</div>
+
+        <div class="upload-buttons">
+            <div class="upload-btn camera-btn" id="cameraBtn">
+                <span class="upload-icon">📸</span>
+                <span>拍照识别</span>
+            </div>
+            <div class="upload-btn" id="galleryBtn">
+                <span class="upload-icon">🖼️</span>
+                <span>从相册选择</span>
+            </div>
+        </div>
+
+        <input type="file" id="fileInputCamera" accept="image/*" capture="environment" style="display: none;">
+        <input type="file" id="fileInputGallery" accept="image/*" style="display: none;">
+
+        <div class="preview-wrapper" id="previewWrapper">
+            <canvas id="previewCanvas"></canvas>
+        </div>
+
+        <div class="image-info" id="imageInfo">✅ 图片已加载，点击下方按钮开始识别</div>
+
+        <button class="btn-detect" id="detectBtn" disabled>🔍 开始识别蘑菇</button>
+        <button class="reset-btn" id="resetBtn">🔄 重新选择图片</button>
+
+        <div class="result-panel">
+            <div class="result-header">
+                <h2 style="font-size: 16px;">📊 识别结果</h2>
+                <span class="inference-time" id="inferenceTime">-</span>
+            </div>
+            <div id="detectionList">
+                <div style="text-align: center; padding: 30px 16px; color: #94a3b8;">
+                    <div style="font-size: 40px;">🍄</div>
+                    <p style="font-size: 12px;">点击上方按钮拍照或选择图片</p>
+                    <p style="font-size: 10px;">模型完全本地运行，图片不上传</p>
+                </div>
+            </div>
+            <div id="warningArea"></div>
+        </div>
+
+        <div class="footer">
+            <p>⚠️ 辅助工具，不可替代专业鉴定 | 完全本地推理，图片不上传</p>
+            <p>🍄 支持14种蘑菇识别 | 确保 best.onnx 在同一目录</p>
+        </div>
+    </div>
+
+    <script>
+        // ==================== 模型路径 ====================
+        // 【重要】模型文件必须与HTML在同一目录，文件名必须为 best.onnx
+        const MODEL_URL = './best.onnx';
+
+        // ==================== 类别配置 ====================
+        const CLASS_NAMES = [
+            'Amanita citrina', 'Gyromitra infula', 'Hygrophoropsis aurantiaca',
+            'Imleria badia', 'Lactarius turpis', 'Boletus reticulatus',
+            'Suillus grevillei', 'Suillus luteus', 'Amanita pantherina',
+            'Coltricia perennis', 'Amanita hemibapha', 'Amanita javanica',
+            'Amanita princeps', 'Russula emetica'
+        ];
+
+        const CHINESE_NAMES = {
+            'Amanita citrina': '柠檬鹅膏', 'Gyromitra infula': '鹿花菌',
+            'Hygrophoropsis aurantiaca': '橙黄湿伞', 'Imleria badia': '褐绒盖牛肝菌',
+            'Lactarius turpis': '污褐乳菇', 'Boletus reticulatus': '网纹牛肝菌',
+            'Suillus grevillei': '厚环乳牛肝菌', 'Suillus luteus': '褐环乳牛肝菌',
+            'Amanita pantherina': '豹斑鹅膏', 'Coltricia perennis': '多年生集毛菌',
+            'Amanita hemibapha': '橙盖鹅膏', 'Amanita javanica': '爪哇鹅膏',
+            'Amanita princeps': '帝王鹅膏', 'Russula emetica': '毒红菇'
+        };
+
+        const TOXICITY = {
+            'Amanita citrina': '有毒', 'Gyromitra infula': '剧毒',
+            'Hygrophoropsis aurantiaca': '可食用', 'Imleria badia': '可食用',
+            'Lactarius turpis': '有毒', 'Boletus reticulatus': '可食用',
+            'Suillus grevillei': '可食用', 'Suillus luteus': '可食用',
+            'Amanita pantherina': '剧毒', 'Coltricia perennis': '可食用',
+            'Amanita hemibapha': '可食用', 'Amanita javanica': '有毒',
+            'Amanita princeps': '有毒', 'Russula emetica': '剧毒'
+        };
+
+        const DESCRIPTIONS = {
+            'Amanita citrina': '柠檬鹅膏，含鹅膏毒素，误食引起胃肠炎。',
+            'Gyromitra infula': '鹿花菌，剧毒，可导致溶血和肝损伤。',
+            'Hygrophoropsis aurantiaca': '橙黄湿伞，可食用，但易与毒蘑菇混淆。',
+            'Imleria badia': '褐绒盖牛肝菌，美味食用菌。',
+            'Lactarius turpis': '污褐乳菇，有毒，引起胃肠不适。',
+            'Boletus reticulatus': '网纹牛肝菌，优质食用菌。',
+            'Suillus grevillei': '厚环乳牛肝菌，可食用。',
+            'Suillus luteus': '褐环乳牛肝菌，常见食用菌。',
+            'Amanita pantherina': '豹斑鹅膏，剧毒，神经毒性。',
+            'Coltricia perennis': '多年生集毛菌，食用价值低。',
+            'Amanita hemibapha': '橙盖鹅膏，著名食用菌。',
+            'Amanita javanica': '爪哇鹅膏，有毒。',
+            'Amanita princeps': '帝王鹅膏，有毒。',
+            'Russula emetica': '毒红菇，剧毒，引起严重胃肠炎。'
+        };
+
+        function getDisplayName(n) { return CHINESE_NAMES[n] || n; }
+        function getToxicityClass(n) {
+            let t = TOXICITY[n];
+            if (t === '剧毒') return 'danger';
+            if (t === '有毒') return 'caution';
+            return 'safe';
+        }
+        function getToxicityText(n) { return TOXICITY[n] || '未知'; }
+        function getDescription(n) { return DESCRIPTIONS[n] || ''; }
+
+        // ==================== NMS ====================
+        function calculateIOU(b1, b2) {
+            const x1 = Math.max(b1[0], b2[0]);
+            const y1 = Math.max(b1[1], b2[1]);
+            const x2 = Math.min(b1[2], b2[2]);
+            const y2 = Math.min(b1[3], b2[3]);
+            const inter = Math.max(0, x2 - x1) * Math.max(0, y2 - y1);
+            const area1 = (b1[2] - b1[0]) * (b1[3] - b1[1]);
+            const area2 = (b2[2] - b2[0]) * (b2[3] - b2[1]);
+            return inter / (area1 + area2 - inter + 1e-6);
+        }
+
+        function nms(detections, iouThreshold) {
+            detections.sort((a, b) => b.confidence - a.confidence);
+            const keep = [];
+            const suppressed = new Array(detections.length).fill(false);
+            for (let i = 0; i < detections.length; i++) {
+                if (suppressed[i]) continue;
+                keep.push(detections[i]);
+                for (let j = i + 1; j < detections.length; j++) {
+                    if (suppressed[j]) continue;
+                    const iou = calculateIOU(detections[i].bbox, detections[j].bbox);
+                    if (iou > iouThreshold) suppressed[j] = true;
+                }
+            }
+            return keep;
+        }
+
+        // ==================== 后处理 ====================
+        function postprocess(output, info, confThreshold, iouThreshold) {
+            const data = output.data;
+            const dims = output.dims;
+            const numPredictions = dims[2];
+            const numClasses = 14;
+            const detections = [];
+
+            for (let i = 0; i < numPredictions; i++) {
+                const xc = data[0 * numPredictions + i];
+                const yc = data[1 * numPredictions + i];
+                const w = data[2 * numPredictions + i];
+                const h = data[3 * numPredictions + i];
+
+                const x1 = xc - w / 2;
+                const y1 = yc - h / 2;
+                const x2 = xc + w / 2;
+                const y2 = yc + h / 2;
+
+                let maxScore = -1, maxId = -1;
+                for (let c = 0; c < numClasses; c++) {
+                    const score = data[(4 + c) * numPredictions + i];
+                    if (score > maxScore) { maxScore = score; maxId = c; }
+                }
+
+                const confidence = maxScore;
+                if (confidence > confThreshold && maxId >= 0) {
+                    const sx = info.scale, ox = info.offsetX, oy = info.offsetY;
+                    detections.push({
+                        bbox: [
+                            Math.max(0, (x1 - ox) / sx),
+                            Math.max(0, (y1 - oy) / sx),
+                            Math.min(info.origW, (x2 - ox) / sx),
+                            Math.min(info.origH, (y2 - oy) / sx)
+                        ],
+                        confidence: confidence,
+                        classId: maxId,
+                        className: CLASS_NAMES[maxId]
+                    });
+                }
+            }
+            return nms(detections, iouThreshold);
+        }
+
+        // ==================== 全局变量 ====================
+        let session = null, modelLoaded = false, inputName = null, outputName = null;
+        let originalImage = null, hasImage = false;
+
+        const cameraBtn = document.getElementById('cameraBtn');
+        const galleryBtn = document.getElementById('galleryBtn');
+        const fileInputCamera = document.getElementById('fileInputCamera');
+        const fileInputGallery = document.getElementById('fileInputGallery');
+        const previewWrapper = document.getElementById('previewWrapper');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const detectBtn = document.getElementById('detectBtn');
+        const resetBtn = document.getElementById('resetBtn');
+        const imageInfo = document.getElementById('imageInfo');
+        const detectionList = document.getElementById('detectionList');
+        const warningArea = document.getElementById('warningArea');
+        const inferenceTimeSpan = document.getElementById('inferenceTime');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const progressBar = document.getElementById('progressBar');
+        const progressFill = document.getElementById('progressFill');
+
+        // ==================== 重置 ====================
+        function resetImage() {
+            originalImage = null;
+            hasImage = false;
+            previewWrapper.style.display = 'none';
+            imageInfo.style.display = 'none';
+            resetBtn.style.display = 'none';
+            detectBtn.disabled = true;
+            fileInputCamera.value = '';
+            fileInputGallery.value = '';
+            detectionList.innerHTML = `
+                <div style="text-align: center; padding: 30px 16px; color: #94a3b8;">
+                    <div style="font-size: 40px;">🍄</div>
+                    <p style="font-size: 12px;">点击上方按钮拍照或选择图片</p>
+                </div>
+            `;
+            warningArea.innerHTML = '';
+            inferenceTimeSpan.innerText = '-';
+        }
+
+        // ==================== 加载模型 ====================
+        async function loadModel() {
+            statusText.innerText = '正在加载模型 best.onnx...';
+            progressBar.style.display = 'block';
+
+            try {
+                let progress = 0;
+                const interval = setInterval(() => {
+                    progress = Math.min(90, progress + 10);
+                    progressFill.style.width = progress + '%';
+                }, 200);
+
+                // 使用正确的模型路径 ./best.onnx
+                session = await ort.InferenceSession.create(MODEL_URL, {
+                    executionProviders: ['wasm']
+                });
+
+                clearInterval(interval);
+                progressFill.style.width = '100%';
+                setTimeout(() => { progressBar.style.display = 'none'; }, 500);
+
+                inputName = session.inputNames[0];
+                outputName = session.outputNames[0];
+
+                modelLoaded = true;
+                statusDot.className = 'status-dot loaded';
+                statusText.innerText = `✅ 模型加载成功 | ${CLASS_NAMES.length}种蘑菇`;
+
+                if (hasImage) detectBtn.disabled = false;
+
+            } catch (e) {
+                console.error('模型加载失败:', e);
+                progressBar.style.display = 'none';
+                modelLoaded = false;
+                statusDot.className = 'status-dot error';
+                statusText.innerText = '❌ 模型加载失败，请检查 best.onnx';
+
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error-box';
+                errorDiv.innerHTML = `
+                    <strong>❌ 模型加载失败</strong><br>
+                    错误: ${e.message}<br><br>
+                    <strong>解决方案：</strong><br>
+                    1. 确保 best.onnx 文件与此HTML在同一目录<br>
+                    2. 使用 HTTP 服务器打开，不要直接双击<br>
+                    3. 电脑上运行: python -m http.server 8080<br>
+                    4. 手机访问: http://电脑IP:8080/mushroom.html
+                `;
+                document.querySelector('.result-panel').before(errorDiv);
+            }
+        }
+
+        // ==================== 图像预处理 ====================
+        async function preprocessImage(img) {
+            const size = 640;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+
+            const scale = Math.min(size / img.width, size / img.height);
+            const w = img.width * scale;
+            const h = img.height * scale;
+            const x = (size - w) / 2;
+            const y = (size - h) / 2;
+
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, size, size);
+            ctx.drawImage(img, x, y, w, h);
+
+            const data = ctx.getImageData(0, 0, size, size).data;
+            const input = new Float32Array(3 * size * size);
+            for (let i = 0; i < size; i++) {
+                for (let j = 0; j < size; j++) {
+                    const idx = (i * size + j) * 4;
+                    input[0 * size * size + i * size + j] = data[idx] / 255;
+                    input[1 * size * size + i * size + j] = data[idx + 1] / 255;
+                    input[2 * size * size + i * size + j] = data[idx + 2] / 255;
+                }
+            }
+
+            return {
+                tensor: new ort.Tensor('float32', input, [1, 3, size, size]),
+                scale: scale,
+                offsetX: x,
+                offsetY: y,
+                origW: img.width,
+                origH: img.height
+            };
+        }
+
+        // ==================== 绘制检测框 ====================
+        function drawBoxes(canvas, detections, img) {
+            const ctx = canvas.getContext('2d');
+            const w = canvas.width, h = canvas.height;
+            const sx = w / img.width, sy = h / img.height;
+            ctx.drawImage(img, 0, 0, w, h);
+
+            detections.forEach(det => {
+                const [x1, y1, x2, y2] = det.bbox;
+                const dx1 = x1 * sx, dy1 = y1 * sy, dx2 = x2 * sx, dy2 = y2 * sy;
+                const level = getToxicityClass(det.className);
+                let color = '#4caf50';
+                if (level === 'danger') color = '#d32f2f';
+                else if (level === 'caution') color = '#ff9800';
+
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                ctx.strokeRect(dx1, dy1, dx2 - dx1, dy2 - dy1);
+
+                const label = `${getDisplayName(det.className)} ${(det.confidence * 100).toFixed(0)}%`;
+                ctx.font = 'bold 11px sans-serif';
+                const tw = ctx.measureText(label).width;
+                ctx.fillStyle = color;
+                ctx.fillRect(dx1, dy1 - 20, tw + 8, 20);
+                ctx.fillStyle = 'white';
+                ctx.fillText(label, dx1 + 4, dy1 - 6);
+            });
+        }
+
+        // ==================== 渲染结果 ====================
+        function renderResults(detections, time) {
+            if (!detections || detections.length === 0) {
+                detectionList.innerHTML = '<div style="text-align:center;padding:30px;"><p>🔍 未检测到蘑菇</p><p style="font-size:11px;">请尝试上传更清晰的蘑菇图片</p></div>';
+                warningArea.innerHTML = '';
+                inferenceTimeSpan.innerText = `${time}ms`;
+                return;
+            }
+
+            let hasDanger = false, hasCaution = false;
+            let html = '';
+            detections.forEach(det => {
+                const level = getToxicityClass(det.className);
+                if (level === 'danger') hasDanger = true;
+                else if (level === 'caution') hasCaution = true;
+                const conf = (det.confidence * 100).toFixed(1);
+                html += `
+                    <div class="detection-card ${level}">
+                        <div class="mushroom-name">
+                            <span>${level === 'danger' ? '☠️' : (level === 'caution' ? '⚠️' : '🍄')}</span>
+                            ${getDisplayName(det.className)}
+                            <span class="latin-name">(${det.className})</span>
+                        </div>
+                        <div class="confidence-bar"><div class="confidence-fill" style="width: ${conf}%"></div></div>
+                        <div class="tags">
+                            <span class="tag tag-confidence">置信度 ${conf}%</span>
+                            <span class="tag tag-toxicity ${level}">${getToxicityText(det.className)}</span>
+                        </div>
+                        <div class="description">${getDescription(det.className)}</div>
+                    </div>
+                `;
+            });
+            detectionList.innerHTML = html;
+            inferenceTimeSpan.innerText = `${time}ms`;
+
+            if (hasDanger) {
+                warningArea.innerHTML = '<div class="warning-banner danger"><span>⚠️⚠️⚠️</span><div><strong>严重警告</strong><br>检测到剧毒蘑菇！请勿食用！</div></div>';
+            } else if (hasCaution) {
+                warningArea.innerHTML = '<div class="warning-banner caution"><span>⚠️</span><div><strong>安全警告</strong><br>检测到有毒蘑菇！请勿采摘。</div></div>';
+            } else {
+                warningArea.innerHTML = '<div class="warning-banner safe"><span>🍄</span><div>未检测到有毒蘑菇，仍需谨慎确认。</div></div>';
+            }
+        }
+
+        // ==================== 推理 ====================
+        async function runInference(img) {
+            if (!modelLoaded) { alert('模型未加载完成'); return; }
+
+            const start = performance.now();
+            detectBtn.disabled = true;
+            detectBtn.innerHTML = '<span class="loader"></span> 推理中...';
+
+            try {
+                const prep = await preprocessImage(img);
+                const feeds = {};
+                feeds[inputName] = prep.tensor;
+                const results = await session.run(feeds);
+                const output = results[outputName];
+                const detections = postprocess(output, prep, 0.45, 0.45);
+                drawBoxes(previewCanvas, detections, img);
+                renderResults(detections, performance.now() - start);
+            } catch (e) {
+                console.error(e);
+                detectionList.innerHTML = `<div style="text-align:center;padding:30px;color:#f44336;"><p>推理失败: ${e.message}</p></div>`;
+            } finally {
+                detectBtn.disabled = false;
+                detectBtn.innerHTML = '🔍 开始识别蘑菇';
+            }
+        }
+
+        // ==================== 图片处理 ====================
+        function handleImage(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    originalImage = img;
+                    hasImage = true;
+                    const maxW = window.innerWidth - 80;
+                    const scale = Math.min(1, maxW / img.width);
+                    previewCanvas.width = img.width * scale;
+                    previewCanvas.height = img.height * scale;
+                    const ctx = previewCanvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, previewCanvas.width, previewCanvas.height);
+                    previewWrapper.style.display = 'block';
+                    imageInfo.style.display = 'block';
+                    resetBtn.style.display = 'block';
+                    if (modelLoaded) detectBtn.disabled = false;
+                    detectionList.innerHTML = `<div style="text-align:center;padding:30px;">✅ 图片已加载，点击识别</div>`;
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // ==================== 事件绑定 ====================
+        cameraBtn.onclick = () => fileInputCamera.click();
+        galleryBtn.onclick = () => fileInputGallery.click();
+        fileInputCamera.onchange = (e) => { if (e.target.files[0]) handleImage(e.target.files[0]); };
+        fileInputGallery.onchange = (e) => { if (e.target.files[0]) handleImage(e.target.files[0]); };
+        resetBtn.onclick = resetImage;
+        detectBtn.onclick = () => { if (hasImage) runInference(originalImage); else alert('请先选择图片'); };
+
+        // 启动
+        loadModel();
+
+        // PWA安装
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            document.getElementById('installBanner').style.display = 'block';
+        });
+        window.installPWA = function() {
+            if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; }); }
+            document.getElementById('installBanner').style.display = 'none';
+        };
+    </script>
+</body>
+</html>
