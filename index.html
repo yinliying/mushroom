@@ -47,27 +47,25 @@
         .status-dot.error { background: #f44336; animation: none; }
         @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
 
+        /* 并排按钮，无图标，紧凑 */
         .upload-buttons {
             margin: 16px;
-            display: flex;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
             gap: 12px;
-            flex-direction: column;
         }
         .upload-btn {
             background: #f1f5f9;
-            border: 2px solid #cbd5e1;
-            border-radius: 60px;
-            padding: 16px 20px;
+            border: 1px solid #cbd5e1;
+            border-radius: 40px;
+            padding: 10px 12px;
             text-align: center;
             cursor: pointer;
             transition: all 0.2s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 500;
             color: #1e293b;
+            display: block;
         }
         .upload-btn:active { background: #e2e8f0; transform: scale(0.98); }
         .camera-btn {
@@ -75,7 +73,6 @@
             border-color: #2c5e3a;
             color: white;
         }
-        .upload-icon { font-size: 24px; }
 
         .preview-wrapper {
             margin: 0 16px 16px 16px;
@@ -150,20 +147,48 @@
         .footer { background: #f1f5f9; padding: 12px; text-align: center; font-size: 9px; color: #64748b; }
         .loader { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
-        .progress-bar {
-            width: 100%;
-            height: 3px;
-            background: #e2e8f0;
+
+        /* 进度条样式 */
+        .progress-container {
             position: fixed;
             top: 0;
             left: 0;
+            width: 100%;
             z-index: 1000;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+        }
+        .progress-card {
+            background: white;
+            border-radius: 24px;
+            padding: 24px;
+            width: 80%;
+            max-width: 280px;
+            text-align: center;
+        }
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 10px;
+            margin: 16px 0;
+            overflow: hidden;
         }
         .progress-fill {
             width: 0%;
             height: 100%;
-            background: #4caf50;
+            background: linear-gradient(90deg, #2c5e3a, #4caf50);
             transition: width 0.3s;
+        }
+        .progress-text {
+            font-size: 14px;
+            color: #1e293b;
+            font-weight: 500;
         }
         .install-banner {
             background: #2c5e3a;
@@ -184,10 +209,28 @@
             font-size: 12px;
         }
         #fileInputCamera, #fileInputGallery { display: none; }
+
+        @media (max-width: 480px) {
+            .upload-btn {
+                font-size: 13px;
+                padding: 8px 8px;
+            }
+            .upload-buttons {
+                gap: 8px;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="progress-bar" id="progressBar" style="display:none;"><div class="progress-fill" id="progressFill"></div></div>
+    <!-- 全局进度条弹窗 -->
+    <div id="progressContainer" class="progress-container">
+        <div class="progress-card">
+            <div id="progressTitle">正在加载模型...</div>
+            <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+            <div class="progress-text" id="progressPercent">0%</div>
+        </div>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1><span>🍄</span> 蘑菇智识 <span>🔬</span></h1>
@@ -197,6 +240,7 @@
                 <span class="badge">📊 召回率 90%</span>
                 <span class="badge">🔒 本地推理</span>
                 <span class="badge">📱 手机可用</span>
+                <span class="badge">💾 模型缓存</span>
             </div>
             <div class="model-status" id="modelStatus">
                 <span class="status-dot" id="statusDot"></span>
@@ -206,14 +250,8 @@
         <div class="install-banner" id="installBanner" onclick="installPWA()">📱 点击安装到桌面，离线使用更便捷</div>
 
         <div class="upload-buttons">
-            <div class="upload-btn camera-btn" id="cameraBtn">
-                <span class="upload-icon">📸</span>
-                <span>拍照识别</span>
-            </div>
-            <div class="upload-btn" id="galleryBtn">
-                <span class="upload-icon">🖼️</span>
-                <span>从相册选择</span>
-            </div>
+            <div class="upload-btn camera-btn" id="cameraBtn">拍照识别</div>
+            <div class="upload-btn" id="galleryBtn">从相册选择</div>
         </div>
 
         <input type="file" id="fileInputCamera" accept="image/*" capture="environment" style="display: none;">
@@ -245,14 +283,14 @@
 
         <div class="footer">
             <p>⚠️ 辅助工具，不可替代专业鉴定 | 完全本地推理，图片不上传</p>
-            <p>🍄 支持14种蘑菇识别 | 确保 best.onnx 在同一目录</p>
+            <p>🍄 支持14种蘑菇识别 | 模型首次下载后永久缓存，后续无需重复下载</p>
         </div>
     </div>
 
     <script>
-        // ==================== 模型路径 ====================
-        // 【重要】模型文件必须与HTML在同一目录，文件名必须为 best.onnx
+        // ==================== 模型路径与缓存Key ====================
         const MODEL_URL = './best.onnx';
+        const CACHE_KEY = 'mushroom_model_v1';
 
         // ==================== 类别配置 ====================
         const CLASS_NAMES = [
@@ -310,7 +348,7 @@
         function getToxicityText(n) { return TOXICITY[n] || '未知'; }
         function getDescription(n) { return DESCRIPTIONS[n] || ''; }
 
-        // ==================== NMS ====================
+        // ==================== NMS 与后处理 ====================
         function calculateIOU(b1, b2) {
             const x1 = Math.max(b1[0], b2[0]);
             const y1 = Math.max(b1[1], b2[1]);
@@ -338,7 +376,6 @@
             return keep;
         }
 
-        // ==================== 后处理 ====================
         function postprocess(output, info, confThreshold, iouThreshold) {
             const data = output.data;
             const dims = output.dims;
@@ -382,6 +419,119 @@
             return nms(detections, iouThreshold);
         }
 
+        // ==================== IndexedDB 缓存操作 ====================
+        function openDB() {
+            return new Promise((resolve, reject) => {
+                const request = indexedDB.open('MushroomCache', 1);
+                request.onupgradeneeded = (e) => {
+                    const db = e.target.result;
+                    if (!db.objectStoreNames.contains('models')) {
+                        db.createObjectStore('models');
+                    }
+                };
+                request.onsuccess = (e) => resolve(e.target.result);
+                request.onerror = (e) => reject(e.target.error);
+            });
+        }
+
+        async function getCachedModel() {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('models', 'readonly');
+                const store = tx.objectStore('models');
+                const getRequest = store.get(CACHE_KEY);
+                getRequest.onsuccess = () => resolve(getRequest.result);
+                getRequest.onerror = () => reject(getRequest.error);
+                tx.oncomplete = () => db.close();
+            });
+        }
+
+        async function saveModelToCache(blob) {
+            const db = await openDB();
+            return new Promise((resolve, reject) => {
+                const tx = db.transaction('models', 'readwrite');
+                const store = tx.objectStore('models');
+                const putRequest = store.put(blob, CACHE_KEY);
+                putRequest.onsuccess = () => resolve();
+                putRequest.onerror = () => reject(putRequest.error);
+                tx.oncomplete = () => db.close();
+            });
+        }
+
+        // ==================== 带进度条的模型加载器 ====================
+        async function loadModelWithProgress() {
+            const progressContainer = document.getElementById('progressContainer');
+            const progressFill = document.getElementById('progressFill');
+            const progressPercent = document.getElementById('progressPercent');
+            const progressTitle = document.getElementById('progressTitle');
+
+            // 1. 检查缓存
+            const cachedBlob = await getCachedModel();
+            if (cachedBlob) {
+                progressTitle.innerText = '从缓存加载模型';
+                progressContainer.style.display = 'flex';
+                progressFill.style.width = '50%';
+                progressPercent.innerText = '50%';
+
+                await new Promise(r => setTimeout(r, 300));
+                const url = URL.createObjectURL(cachedBlob);
+                const session = await ort.InferenceSession.create(url, { executionProviders: ['wasm'] });
+                URL.revokeObjectURL(url);
+
+                progressFill.style.width = '100%';
+                progressPercent.innerText = '100%';
+                await new Promise(r => setTimeout(r, 500));
+                progressContainer.style.display = 'none';
+                return session;
+            }
+
+            // 2. 网络下载（带进度）
+            progressTitle.innerText = '正在下载模型 (首次使用)';
+            progressContainer.style.display = 'flex';
+            progressFill.style.width = '0%';
+            progressPercent.innerText = '0%';
+
+            const response = await fetch(MODEL_URL);
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const total = parseInt(response.headers.get('content-length')) || 0;
+            let loaded = 0;
+
+            const reader = response.body.getReader();
+            const chunks = [];
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                chunks.push(value);
+                loaded += value.length;
+                if (total) {
+                    const percent = Math.round((loaded / total) * 100);
+                    progressFill.style.width = percent + '%';
+                    progressPercent.innerText = percent + '%';
+                }
+            }
+            const modelBlob = new Blob(chunks);
+
+            // 3. 保存到缓存
+            progressTitle.innerText = '保存模型到缓存';
+            progressFill.style.width = '80%';
+            progressPercent.innerText = '80%';
+            await saveModelToCache(modelBlob);
+
+            progressFill.style.width = '95%';
+            progressPercent.innerText = '95%';
+
+            // 4. 创建 Session
+            const url = URL.createObjectURL(modelBlob);
+            const session = await ort.InferenceSession.create(url, { executionProviders: ['wasm'] });
+            URL.revokeObjectURL(url);
+
+            progressFill.style.width = '100%';
+            progressPercent.innerText = '100%';
+            await new Promise(r => setTimeout(r, 500));
+            progressContainer.style.display = 'none';
+            return session;
+        }
+
         // ==================== 全局变量 ====================
         let session = null, modelLoaded = false, inputName = null, outputName = null;
         let originalImage = null, hasImage = false;
@@ -400,10 +550,7 @@
         const inferenceTimeSpan = document.getElementById('inferenceTime');
         const statusDot = document.getElementById('statusDot');
         const statusText = document.getElementById('statusText');
-        const progressBar = document.getElementById('progressBar');
-        const progressFill = document.getElementById('progressFill');
 
-        // ==================== 重置 ====================
         function resetImage() {
             originalImage = null;
             hasImage = false;
@@ -423,43 +570,22 @@
             inferenceTimeSpan.innerText = '-';
         }
 
-        // ==================== 加载模型 ====================
-        async function loadModel() {
-            statusText.innerText = '正在加载模型 best.onnx...';
-            progressBar.style.display = 'block';
-
+        // 初始化模型
+        async function initModel() {
             try {
-                let progress = 0;
-                const interval = setInterval(() => {
-                    progress = Math.min(90, progress + 10);
-                    progressFill.style.width = progress + '%';
-                }, 200);
-
-                // 使用正确的模型路径 ./best.onnx
-                session = await ort.InferenceSession.create(MODEL_URL, {
-                    executionProviders: ['wasm']
-                });
-
-                clearInterval(interval);
-                progressFill.style.width = '100%';
-                setTimeout(() => { progressBar.style.display = 'none'; }, 500);
-
+                const sess = await loadModelWithProgress();
+                session = sess;
                 inputName = session.inputNames[0];
                 outputName = session.outputNames[0];
-
                 modelLoaded = true;
                 statusDot.className = 'status-dot loaded';
-                statusText.innerText = `✅ 模型加载成功 | ${CLASS_NAMES.length}种蘑菇`;
-
+                statusText.innerText = `✅ 模型已就绪 | ${CLASS_NAMES.length}种蘑菇`;
                 if (hasImage) detectBtn.disabled = false;
-
             } catch (e) {
                 console.error('模型加载失败:', e);
-                progressBar.style.display = 'none';
                 modelLoaded = false;
                 statusDot.className = 'status-dot error';
                 statusText.innerText = '❌ 模型加载失败，请检查 best.onnx';
-
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'error-box';
                 errorDiv.innerHTML = `
@@ -467,32 +593,28 @@
                     错误: ${e.message}<br><br>
                     <strong>解决方案：</strong><br>
                     1. 确保 best.onnx 文件与此HTML在同一目录<br>
-                    2. 使用 HTTP 服务器打开，不要直接双击<br>
-                    3. 电脑上运行: python -m http.server 8080<br>
-                    4. 手机访问: http://电脑IP:8080/mushroom.html
+                    2. 使用 HTTP 服务器打开<br>
+                    3. 检查网络连接（首次需要下载模型）
                 `;
                 document.querySelector('.result-panel').before(errorDiv);
             }
         }
 
-        // ==================== 图像预处理 ====================
+        // 图像预处理
         async function preprocessImage(img) {
             const size = 640;
             const canvas = document.createElement('canvas');
             canvas.width = size;
             canvas.height = size;
             const ctx = canvas.getContext('2d');
-
             const scale = Math.min(size / img.width, size / img.height);
             const w = img.width * scale;
             const h = img.height * scale;
             const x = (size - w) / 2;
             const y = (size - h) / 2;
-
             ctx.fillStyle = '#000';
             ctx.fillRect(0, 0, size, size);
             ctx.drawImage(img, x, y, w, h);
-
             const data = ctx.getImageData(0, 0, size, size).data;
             const input = new Float32Array(3 * size * size);
             for (let i = 0; i < size; i++) {
@@ -503,7 +625,6 @@
                     input[2 * size * size + i * size + j] = data[idx + 2] / 255;
                 }
             }
-
             return {
                 tensor: new ort.Tensor('float32', input, [1, 3, size, size]),
                 scale: scale,
@@ -514,13 +635,11 @@
             };
         }
 
-        // ==================== 绘制检测框 ====================
         function drawBoxes(canvas, detections, img) {
             const ctx = canvas.getContext('2d');
             const w = canvas.width, h = canvas.height;
             const sx = w / img.width, sy = h / img.height;
             ctx.drawImage(img, 0, 0, w, h);
-
             detections.forEach(det => {
                 const [x1, y1, x2, y2] = det.bbox;
                 const dx1 = x1 * sx, dy1 = y1 * sy, dx2 = x2 * sx, dy2 = y2 * sy;
@@ -528,11 +647,9 @@
                 let color = '#4caf50';
                 if (level === 'danger') color = '#d32f2f';
                 else if (level === 'caution') color = '#ff9800';
-
                 ctx.strokeStyle = color;
                 ctx.lineWidth = 3;
                 ctx.strokeRect(dx1, dy1, dx2 - dx1, dy2 - dy1);
-
                 const label = `${getDisplayName(det.className)} ${(det.confidence * 100).toFixed(0)}%`;
                 ctx.font = 'bold 11px sans-serif';
                 const tw = ctx.measureText(label).width;
@@ -543,7 +660,6 @@
             });
         }
 
-        // ==================== 渲染结果 ====================
         function renderResults(detections, time) {
             if (!detections || detections.length === 0) {
                 detectionList.innerHTML = '<div style="text-align:center;padding:30px;"><p>🔍 未检测到蘑菇</p><p style="font-size:11px;">请尝试上传更清晰的蘑菇图片</p></div>';
@@ -551,7 +667,6 @@
                 inferenceTimeSpan.innerText = `${time}ms`;
                 return;
             }
-
             let hasDanger = false, hasCaution = false;
             let html = '';
             detections.forEach(det => {
@@ -577,7 +692,6 @@
             });
             detectionList.innerHTML = html;
             inferenceTimeSpan.innerText = `${time}ms`;
-
             if (hasDanger) {
                 warningArea.innerHTML = '<div class="warning-banner danger"><span>⚠️⚠️⚠️</span><div><strong>严重警告</strong><br>检测到剧毒蘑菇！请勿食用！</div></div>';
             } else if (hasCaution) {
@@ -587,14 +701,11 @@
             }
         }
 
-        // ==================== 推理 ====================
         async function runInference(img) {
             if (!modelLoaded) { alert('模型未加载完成'); return; }
-
             const start = performance.now();
             detectBtn.disabled = true;
             detectBtn.innerHTML = '<span class="loader"></span> 推理中...';
-
             try {
                 const prep = await preprocessImage(img);
                 const feeds = {};
@@ -613,7 +724,6 @@
             }
         }
 
-        // ==================== 图片处理 ====================
         function handleImage(file) {
             if (!file) return;
             const reader = new FileReader();
@@ -639,7 +749,7 @@
             reader.readAsDataURL(file);
         }
 
-        // ==================== 事件绑定 ====================
+        // 事件绑定
         cameraBtn.onclick = () => fileInputCamera.click();
         galleryBtn.onclick = () => fileInputGallery.click();
         fileInputCamera.onchange = (e) => { if (e.target.files[0]) handleImage(e.target.files[0]); };
@@ -647,8 +757,8 @@
         resetBtn.onclick = resetImage;
         detectBtn.onclick = () => { if (hasImage) runInference(originalImage); else alert('请先选择图片'); };
 
-        // 启动
-        loadModel();
+        // 启动模型加载
+        initModel();
 
         // PWA安装
         let deferredPrompt;
