@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=yes, viewport-fit=cover">
     <meta name="theme-color" content="#2c5e3a">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>蘑菇智识 - 野生蘑菇识别系统</title>
+    <title>野生蘑菇检测分类</title>
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.1/dist/ort.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -47,7 +47,7 @@
         .status-dot.error { background: #f44336; animation: none; }
         @keyframes pulse { 0%,100% { opacity: 0.4; } 50% { opacity: 1; } }
 
-        /* 并排按钮，无图标，紧凑 */
+        /* 并排按钮 */
         .upload-buttons {
             margin: 16px;
             display: grid;
@@ -148,7 +148,7 @@
         .loader { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* 进度条弹窗样式 */
+        /* 进度条弹窗 */
         .progress-container {
             position: fixed;
             top: 0;
@@ -231,25 +231,24 @@
 
     <div class="container">
         <div class="header">
-            <h1><span>🍄</span> 蘑菇智识 <span>🔬</span></h1>
-            <p>YOLOv8 ONNX | 14种野生蘑菇识别</p>
+            <h1><span></span> 蘑菇检测分类 <span></span></h1>
+            <p>YOLOv13 | 14种野生蘑菇识别</p>
             <div class="badge-container">
-                <span class="badge">🎯 精确率 98%</span>
-                <span class="badge">📊 召回率 90%</span>
-                <span class="badge">🔒 本地推理</span>
-                <span class="badge">📱 手机可用</span>
-                <span class="badge">💾 模型缓存</span>
+                <span class="badge"> 精确率 98%</span>
+                <span class="badge"> 召回率 90%</span>
+                <span class="badge"> 本地推理</span>
+                <span class="badge"> 手机可用</span>
+                <span class="badge"> 模型缓存</span>
             </div>
             <div class="model-status" id="modelStatus">
                 <span class="status-dot" id="statusDot"></span>
                 <span id="statusText">等待加载模型...</span>
             </div>
         </div>
-        <div class="install-banner" id="installBanner" onclick="installPWA()">📱 点击安装到桌面，离线使用更便捷</div>
 
         <div class="upload-buttons">
             <div class="upload-btn camera-btn" id="cameraBtn">拍照识别</div>
-            <div class="upload-btn" id="galleryBtn">从相册选择</div>
+            <div class="upload-btn" id="galleryBtn">相册选择</div>
         </div>
 
         <input type="file" id="fileInputCamera" accept="image/*" capture="environment" style="display: none;">
@@ -259,29 +258,30 @@
             <canvas id="previewCanvas"></canvas>
         </div>
 
-        <div class="image-info" id="imageInfo">✅ 图片已加载，点击下方按钮开始识别</div>
+        <div class="image-info" id="imageInfo"> 图片已加载，点击下方按钮开始识别</div>
 
-        <button class="btn-detect" id="detectBtn" disabled>🔍 开始识别蘑菇</button>
-        <button class="reset-btn" id="resetBtn">🔄 重新选择图片</button>
+        <button class="btn-detect" id="detectBtn" disabled> 开始识别蘑菇</button>
+        <button class="reset-btn" id="resetBtn"> 重新选择图片</button>
 
         <div class="result-panel">
             <div class="result-header">
-                <h2 style="font-size: 16px;">📊 识别结果</h2>
+                <h2 style="font-size: 16px;"> 识别结果</h2>
                 <span class="inference-time" id="inferenceTime">-</span>
             </div>
             <div id="detectionList">
                 <div style="text-align: center; padding: 30px 16px; color: #94a3b8;">
-                    <div style="font-size: 40px;">🍄</div>
+                    <div style="font-size: 40px;"></div>
                     <p style="font-size: 12px;">点击上方按钮拍照或选择图片</p>
-                    <p style="font-size: 10px;">模型完全本地运行，图片不上传</p>
+
                 </div>
             </div>
             <div id="warningArea"></div>
         </div>
 
         <div class="footer">
-            <p>⚠️ 辅助工具，不可替代专业鉴定 | 完全本地推理，图片不上传</p>
-            <p>🍄 支持14种蘑菇识别 | 模型首次下载后永久缓存，后续无需重复下载</p>
+            <p> 辅助工具，不可替代专业鉴定 </p>
+            <p> 支持14种蘑菇识别 黄毒蝇鹅膏菌 鞍形鹿花菌 橙黄蜡伞 褐绒盖牛肝菌 劣味乳菇 网纹牛肝菌 厚环乳牛肝菌
+                乳牛肝菌 豹斑毒鹅膏菌 多年生集毛菌 半红鹅膏菌 爪哇鹅膏菌 王子鹅膏菌 呕吐红菇  </p>
         </div>
     </div>
 
@@ -300,13 +300,13 @@
         ];
 
         const CHINESE_NAMES = {
-            'Amanita citrina': '柠檬鹅膏', 'Gyromitra infula': '鹿花菌',
-            'Hygrophoropsis aurantiaca': '橙黄湿伞', 'Imleria badia': '褐绒盖牛肝菌',
-            'Lactarius turpis': '污褐乳菇', 'Boletus reticulatus': '网纹牛肝菌',
-            'Suillus grevillei': '厚环乳牛肝菌', 'Suillus luteus': '褐环乳牛肝菌',
-            'Amanita pantherina': '豹斑鹅膏', 'Coltricia perennis': '多年生集毛菌',
-            'Amanita hemibapha': '橙盖鹅膏', 'Amanita javanica': '爪哇鹅膏',
-            'Amanita princeps': '帝王鹅膏', 'Russula emetica': '毒红菇'
+            'Amanita citrina': '黄毒蝇鹅膏菌', 'Gyromitra infula': '鞍形鹿花菌',
+            'Hygrophoropsis aurantiaca': '橙黄蜡伞', 'Imleria badia': '褐绒盖牛肝菌',
+            'Lactarius turpis': '劣味乳菇', 'Boletus reticulatus': '网纹牛肝菌',
+            'Suillus grevillei': '厚环乳牛肝菌', 'Suillus luteus': '乳牛肝菌',
+            'Amanita pantherina': '豹斑毒鹅膏菌', 'Coltricia perennis': '多年生集毛菌',
+            'Amanita hemibapha': '半红鹅膏菌', 'Amanita javanica': '爪哇鹅膏菌',
+            'Amanita princeps': '王子鹅膏菌', 'Russula emetica': '呕吐红菇'
         };
 
         const TOXICITY = {
@@ -320,20 +320,20 @@
         };
 
         const DESCRIPTIONS = {
-            'Amanita citrina': '柠檬鹅膏，含鹅膏毒素，误食引起胃肠炎。',
-            'Gyromitra infula': '鹿花菌，剧毒，可导致溶血和肝损伤。',
-            'Hygrophoropsis aurantiaca': '橙黄湿伞，可食用，但易与毒蘑菇混淆。',
+            'Amanita citrina': '黄毒蝇鹅膏菌，含鹅膏毒素，误食引起胃肠炎。',
+            'Gyromitra infula': '鞍形鹿花菌，剧毒，可导致溶血和肝损伤。',
+            'Hygrophoropsis aurantiaca': '橙黄蜡伞，可食用，但易与毒蘑菇混淆。',
             'Imleria badia': '褐绒盖牛肝菌，美味食用菌。',
-            'Lactarius turpis': '污褐乳菇，有毒，引起胃肠不适。',
+            'Lactarius turpis': '劣味乳菇，有毒，引起胃肠不适。',
             'Boletus reticulatus': '网纹牛肝菌，优质食用菌。',
             'Suillus grevillei': '厚环乳牛肝菌，可食用。',
-            'Suillus luteus': '褐环乳牛肝菌，常见食用菌。',
-            'Amanita pantherina': '豹斑鹅膏，剧毒，神经毒性。',
+            'Suillus luteus': '乳牛肝菌，常见食用菌。',
+            'Amanita pantherina': '豹斑毒鹅膏菌，剧毒，神经毒性。',
             'Coltricia perennis': '多年生集毛菌，食用价值低。',
-            'Amanita hemibapha': '橙盖鹅膏，著名食用菌。',
-            'Amanita javanica': '爪哇鹅膏，有毒。',
-            'Amanita princeps': '帝王鹅膏，有毒。',
-            'Russula emetica': '毒红菇，剧毒，引起严重胃肠炎。'
+            'Amanita hemibapha': '半红鹅膏菌，著名食用菌。',
+            'Amanita javanica': '爪哇鹅膏菌，有毒。',
+            'Amanita princeps': '王子鹅膏菌，有毒。',
+            'Russula emetica': '呕吐红菇，剧毒，引起严重胃肠炎。'
         };
 
         function getDisplayName(n) { return CHINESE_NAMES[n] || n; }
@@ -456,7 +456,7 @@
             });
         }
 
-        // ==================== 带进度条的模型加载器（修复超过100%问题）====================
+        // ==================== 带进度条的模型加载器 ====================
         async function loadModelWithProgress() {
             const progressContainer = document.getElementById('progressContainer');
             const progressFill = document.getElementById('progressFill');
@@ -466,7 +466,7 @@
             // 1. 检查缓存
             const cachedBlob = await getCachedModel();
             if (cachedBlob) {
-                progressTitle.innerText = '从缓存加载模型';
+                progressTitle.innerText = '加载模型';
                 progressContainer.style.display = 'flex';
                 progressFill.style.width = '50%';
                 progressPercent.innerText = '50%';
@@ -483,8 +483,8 @@
                 return session;
             }
 
-            // 2. 网络下载（带进度，限制最大100%）
-            progressTitle.innerText = '正在下载模型 (首次使用)';
+            // 2. 网络下载
+            progressTitle.innerText = '正在下载模型 ';
             progressContainer.style.display = 'flex';
             progressFill.style.width = '0%';
             progressPercent.innerText = '0%';
@@ -522,7 +522,7 @@
             const modelBlob = new Blob(chunks);
 
             // 3. 保存到缓存
-            progressTitle.innerText = '保存模型到缓存';
+            progressTitle.innerText = '模型缓存';
             progressFill.style.width = '80%';
             progressPercent.innerText = '80%';
             await saveModelToCache(modelBlob);
@@ -572,7 +572,7 @@
             fileInputGallery.value = '';
             detectionList.innerHTML = `
                 <div style="text-align: center; padding: 30px 16px; color: #94a3b8;">
-                    <div style="font-size: 40px;">🍄</div>
+                    <div style="font-size: 40px;"></div>
                     <p style="font-size: 12px;">点击上方按钮拍照或选择图片</p>
                 </div>
             `;
@@ -672,7 +672,7 @@
 
         function renderResults(detections, time) {
             if (!detections || detections.length === 0) {
-                detectionList.innerHTML = '<div style="text-align:center;padding:30px;"><p>🔍 未检测到蘑菇</p><p style="font-size:11px;">请尝试上传更清晰的蘑菇图片</p></div>';
+                detectionList.innerHTML = '<div style="text-align:center;padding:30px;"><p> 未检测到蘑菇</p><p style="font-size:11px;">请尝试上传更清晰的蘑菇图片</p></div>';
                 warningArea.innerHTML = '';
                 inferenceTimeSpan.innerText = `${time}ms`;
                 return;
@@ -687,7 +687,7 @@
                 html += `
                     <div class="detection-card ${level}">
                         <div class="mushroom-name">
-                            <span>${level === 'danger' ? '☠️' : (level === 'caution' ? '⚠️' : '🍄')}</span>
+                            <span>${level === 'danger' ? '' : (level === 'caution' ? '' : '')}</span>
                             ${getDisplayName(det.className)}
                             <span class="latin-name">(${det.className})</span>
                         </div>
@@ -703,11 +703,11 @@
             detectionList.innerHTML = html;
             inferenceTimeSpan.innerText = `${time}ms`;
             if (hasDanger) {
-                warningArea.innerHTML = '<div class="warning-banner danger"><span>⚠️⚠️⚠️</span><div><strong>严重警告</strong><br>检测到剧毒蘑菇！请勿食用！</div></div>';
+                warningArea.innerHTML = '<div class="warning-banner danger"><span></span><div><strong>严重警告</strong><br>检测到剧毒蘑菇！请勿食用！</div></div>';
             } else if (hasCaution) {
-                warningArea.innerHTML = '<div class="warning-banner caution"><span>⚠️</span><div><strong>安全警告</strong><br>检测到有毒蘑菇！请勿采摘。</div></div>';
+                warningArea.innerHTML = '<div class="warning-banner caution"><span></span><div><strong>安全警告</strong><br>检测到有毒蘑菇！请勿采摘。</div></div>';
             } else {
-                warningArea.innerHTML = '<div class="warning-banner safe"><span>🍄</span><div>未检测到有毒蘑菇，仍需谨慎确认。</div></div>';
+                warningArea.innerHTML = '<div class="warning-banner safe"><span></span><div>未检测到有毒蘑菇，仍需谨慎确认。</div></div>';
             }
         }
 
@@ -730,7 +730,7 @@
                 detectionList.innerHTML = `<div style="text-align:center;padding:30px;color:#f44336;"><p>推理失败: ${e.message}</p></div>`;
             } finally {
                 detectBtn.disabled = false;
-                detectBtn.innerHTML = '🔍 开始识别蘑菇';
+                detectBtn.innerHTML = ' 开始识别蘑菇';
             }
         }
 
