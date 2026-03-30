@@ -148,20 +148,18 @@
         .loader { display: inline-block; width: 14px; height: 14px; border: 2px solid #fff; border-top-color: transparent; border-radius: 50%; animation: spin 0.6s linear infinite; margin-right: 6px; vertical-align: middle; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* 进度条样式 */
+        /* 进度条弹窗样式 */
         .progress-container {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
+            height: 100%;
             z-index: 1000;
-            background: rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.7);
             display: none;
-            flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100%;
-            background: rgba(0,0,0,0.7);
         }
         .progress-card {
             background: white;
@@ -222,7 +220,7 @@
     </style>
 </head>
 <body>
-    <!-- 全局进度条弹窗 -->
+    <!-- 进度条弹窗 -->
     <div id="progressContainer" class="progress-container">
         <div class="progress-card">
             <div id="progressTitle">正在加载模型...</div>
@@ -458,7 +456,7 @@
             });
         }
 
-        // ==================== 带进度条的模型加载器 ====================
+        // ==================== 带进度条的模型加载器（修复超过100%问题）====================
         async function loadModelWithProgress() {
             const progressContainer = document.getElementById('progressContainer');
             const progressFill = document.getElementById('progressFill');
@@ -485,7 +483,7 @@
                 return session;
             }
 
-            // 2. 网络下载（带进度）
+            // 2. 网络下载（带进度，限制最大100%）
             progressTitle.innerText = '正在下载模型 (首次使用)';
             progressContainer.style.display = 'flex';
             progressFill.style.width = '0%';
@@ -493,22 +491,34 @@
 
             const response = await fetch(MODEL_URL);
             if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+            // 获取文件总大小（可能为 null）
             const total = parseInt(response.headers.get('content-length')) || 0;
             let loaded = 0;
 
             const reader = response.body.getReader();
             const chunks = [];
+
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
                 chunks.push(value);
                 loaded += value.length;
-                if (total) {
-                    const percent = Math.round((loaded / total) * 100);
-                    progressFill.style.width = percent + '%';
-                    progressPercent.innerText = percent + '%';
+
+                // 计算百分比，确保不超过 100%
+                let percent = 0;
+                if (total > 0) {
+                    percent = Math.min(100, Math.floor((loaded / total) * 100));
+                } else {
+                    // 没有 Content-Length 时，显示不确定进度（最多到 90%）
+                    percent = Math.min(90, Math.floor((loaded / 1024 / 1024) * 5)); // 每5MB约10%
                 }
+                percent = Math.min(100, percent); // 绝对不超过100
+
+                progressFill.style.width = percent + '%';
+                progressPercent.innerText = percent + '%';
             }
+
             const modelBlob = new Blob(chunks);
 
             // 3. 保存到缓存
