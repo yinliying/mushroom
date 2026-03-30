@@ -235,7 +235,7 @@
             <p>YOLOv13 | 14种野生蘑菇识别</p>
             <div class="badge-container">
                 <span class="badge"> 本地推理</span>
-                <span class="badge"> 手机可用</span>
+                <span class="badge"> 模型下载后离线可用</span>
             </div>
             <div class="model-status" id="modelStatus">
                 <span class="status-dot" id="statusDot"></span>
@@ -586,7 +586,7 @@
                 outputName = session.outputNames[0];
                 modelLoaded = true;
                 statusDot.className = 'status-dot loaded';
-                statusText.innerText = `✅ 模型已就绪 | ${CLASS_NAMES.length}种蘑菇`;
+                statusText.innerText = `✅ 模型已就绪 `;
                 if (hasImage) detectBtn.disabled = false;
             } catch (e) {
                 console.error('模型加载失败:', e);
