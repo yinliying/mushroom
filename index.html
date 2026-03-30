@@ -234,11 +234,8 @@
             <h1><span></span> 蘑菇检测分类 <span></span></h1>
             <p>YOLOv13 | 14种野生蘑菇识别</p>
             <div class="badge-container">
-                <span class="badge"> 精确率 98%</span>
-                <span class="badge"> 召回率 90%</span>
                 <span class="badge"> 本地推理</span>
                 <span class="badge"> 手机可用</span>
-                <span class="badge"> 模型缓存</span>
             </div>
             <div class="model-status" id="modelStatus">
                 <span class="status-dot" id="statusDot"></span>
@@ -288,7 +285,7 @@
     <script>
         // ==================== 模型路径与缓存Key ====================
         const MODEL_URL = './best.onnx';
-        const CACHE_KEY = 'mushroom_model_v1';
+        const CACHE_KEY = 'mushroom-model-v1';
 
         // ==================== 类别配置 ====================
         const CLASS_NAMES = [
