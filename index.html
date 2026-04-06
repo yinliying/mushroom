@@ -592,14 +592,14 @@
                 console.error('模型加载失败:', e);
                 modelLoaded = false;
                 statusDot.className = 'status-dot error';
-                statusText.innerText = '❌ 模型加载失败，请检查 best.onnx';
+                statusText.innerText = '❌ 模型加载失败，请检查';
                 const errorDiv = document.createElement('div');
                 errorDiv.className = 'error-box';
                 errorDiv.innerHTML = `
                     <strong>❌ 模型加载失败</strong><br>
                     错误: ${e.message}<br><br>
                     <strong>解决方案：</strong><br>
-                    1. 确保 best.onnx 文件与此HTML在同一目录<br>
+                    1. 确保 .onnx 文件与此HTML在同一目录<br>
                     2. 使用 HTTP 服务器打开<br>
                     3. 检查网络连接（首次需要下载模型）
                 `;
