@@ -767,17 +767,6 @@
         // 启动模型加载
         initModel();
 
-        // PWA安装
-        let deferredPrompt;
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredPrompt = e;
-            document.getElementById('installBanner').style.display = 'block';
-        });
-        window.installPWA = function() {
-            if (deferredPrompt) { deferredPrompt.prompt(); deferredPrompt.userChoice.then(() => { deferredPrompt = null; }); }
-            document.getElementById('installBanner').style.display = 'none';
-        };
     </script>
 </body>
 </html>
